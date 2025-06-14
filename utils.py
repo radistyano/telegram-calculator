@@ -2,6 +2,10 @@ from models import Rate, FeeRange, Transaction, CustomFormula
 from sqlalchemy import func
 import re
 import logging
+import asyncio
+from datetime import datetime, timedelta
+from functools import lru_cache
+from typing import Dict, Optional
 
 # Configure logging
 logging.basicConfig(
@@ -10,36 +14,73 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Cache duration in seconds
+CACHE_DURATION = 300  # 5 minutes
 
+# Cache for rates
+_rate_cache: Dict[str, Dict] = {}
+_rate_cache_time: Dict[str, datetime] = {}
+
+@lru_cache(maxsize=128)
 def get_rate(session, rate_type):
-    """Get the current rate for buy or sell"""
+    """Get the current rate for buy or sell with caching"""
+    current_time = datetime.utcnow()
+    
+    # Check cache
+    if rate_type in _rate_cache and rate_type in _rate_cache_time:
+        if current_time - _rate_cache_time[rate_type] < timedelta(seconds=CACHE_DURATION):
+            return _rate_cache[rate_type]
+    
+    # Get from database
     rate = session.query(Rate).filter(Rate.type == rate_type).first()
     if not rate:
         logger.error(f"No {rate_type} rate found in database")
         return None
-    return rate.value
+    
+    result = {
+        'value': rate.value,
+        'updated_at': rate.updated_at
+    }
+    
+    # Update cache
+    _rate_cache[rate_type] = result
+    _rate_cache_time[rate_type] = current_time
+    
+    return result
 
 
-def update_rate(session, rate_type, new_value):
-    """Update the rate for buy or sell"""
+def update_rate(db_session, rate_type, value):
+    """
+    Update rate in database
+    
+    Args:
+        db_session: Database session
+        rate_type: 'buy' or 'sell'
+        value: New rate value
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
     try:
-        rate = session.query(Rate).filter(Rate.type == rate_type).first()
-        if not rate:
-            # Create new rate if it doesn't exist
-            rate = Rate(type=rate_type, value=new_value)
-            session.add(rate)
+        rate = db_session.query(Rate).filter(Rate.type == rate_type).first()
+        if rate:
+            rate.value = value
+            rate.updated_at = datetime.utcnow()
         else:
-            rate.value = new_value
-        session.commit()
+            rate = Rate(type=rate_type, value=value)
+            db_session.add(rate)
+        
+        db_session.commit()
         return True
     except Exception as e:
-        logger.error(f"Error updating {rate_type} rate: {e}")
-        session.rollback()
+        logger.error(f"Error updating rate: {e}")
+        db_session.rollback()
         return False
 
 
+@lru_cache(maxsize=128)
 def get_fee_for_amount(session, amount):
-    """Get the fee amount for a given transaction amount"""
+    """Get the fee amount for a given transaction amount with caching"""
     try:
         # Find the fee range that contains the amount
         fee_range = session.query(FeeRange).filter(
@@ -134,80 +175,59 @@ def delete_fee_range(session, fee_id):
         return False
 
 
-def calculate_transaction(session, usdt_amount, transaction_type):
-    """Calculate the total amount for a transaction"""
+def calculate_transaction(db_session, amount, transaction_type):
+    """
+    Calculate transaction details
+    
+    Args:
+        db_session: Database session
+        amount: Amount in USDT
+        transaction_type: 'buy' or 'sell'
+        
+    Returns:
+        dict: Transaction details
+    """
     try:
         # Get the rate
-        rate = get_rate(session, transaction_type)
+        rate = get_rate(db_session, transaction_type)
         if not rate:
             return None
         
-        # Calculate the base amount
-        base_amount = usdt_amount * rate
+        # Calculate IDR amount
+        idr_amount = amount * rate['value']
         
         # Get the fee
-        fee = get_fee_for_amount(session, base_amount)
+        fee = get_fee_for_amount(db_session, idr_amount)
         
-        # Get the custom formula if available
-        formula = session.query(CustomFormula).filter(
-            CustomFormula.type == transaction_type,
-            CustomFormula.is_active == True
-        ).first()
-        
-        if formula:
-            # Use the custom formula
-            try:
-                # Replace variables in the formula
-                formula_str = formula.formula
-                formula_str = formula_str.replace("{usdt_amount}", str(usdt_amount))
-                formula_str = formula_str.replace("{rate}", str(rate))
-                formula_str = formula_str.replace("{fee}", str(fee))
-                
-                # Evaluate the formula
-                total_amount = eval(formula_str)
-            except Exception as e:
-                logger.error(f"Error evaluating custom formula: {e}")
-                # Fall back to default formula
-                if transaction_type == 'buy':
-                    total_amount = base_amount + fee
-                else:  # sell
-                    total_amount = base_amount - fee
-        else:
-            # Use default formula
-            if transaction_type == 'buy':
-                total_amount = base_amount + fee
-            else:  # sell
-                total_amount = base_amount - fee
-        
-        # Calculate profit for sell transactions
-        profit = None
-        if transaction_type == 'sell':
-            buy_rate = get_rate(session, 'buy')
-            if buy_rate:
-                profit = (buy_rate - rate) * usdt_amount + fee
+        # Calculate total amount
+        if transaction_type == 'buy':
+            total_amount = idr_amount + fee
+        else:  # sell
+            total_amount = idr_amount - fee
         
         # Record the transaction
         transaction = Transaction(
             type=transaction_type,
-            usdt_amount=usdt_amount,
-            rate=rate,
+            usdt_amount=amount,
+            idr_amount=idr_amount,
+            rate=rate['value'],
             fee=fee,
-            total_amount=total_amount,
-            profit=profit
+            total_amount=total_amount
         )
-        session.add(transaction)
-        session.commit()
+        db_session.add(transaction)
+        db_session.commit()
         
         return {
-            'usdt_amount': usdt_amount,
-            'rate': rate,
+            'usdt_amount': amount,
+            'idr_amount': idr_amount,
+            'rate': rate['value'],
             'fee': fee,
             'total_amount': total_amount,
-            'profit': profit
+            'updated_at': rate['updated_at']
         }
     except Exception as e:
         logger.error(f"Error calculating transaction: {e}")
-        session.rollback()
+        db_session.rollback()
         return None
 
 
@@ -310,4 +330,28 @@ def get_active_formula(session, formula_type):
     return session.query(CustomFormula).filter(
         CustomFormula.type == formula_type,
         CustomFormula.is_active == True
-    ).first() 
+    ).first()
+
+
+async def calculate_transaction_async(db_session, amount, transaction_type):
+    """
+    Asynchronous wrapper for calculate_transaction
+    
+    Args:
+        db_session: Database session
+        amount: Amount in USDT
+        transaction_type: 'buy' or 'sell'
+        
+    Returns:
+        dict: Transaction details
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, calculate_transaction, db_session, amount, transaction_type)
+
+
+def clear_rate_cache():
+    """Clear the rate cache"""
+    _rate_cache.clear()
+    _rate_cache_time.clear()
+    get_rate.cache_clear()
+    get_fee_for_amount.cache_clear() 

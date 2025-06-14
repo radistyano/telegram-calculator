@@ -32,7 +32,7 @@ A Telegram bot for calculating USDT buy/sell transactions with customizable rate
 - `/help` - Show help information
 
 ### Admin Commands
-- `/admin` - Access admin panel (restricted to admin users)
+- `/adminpanel` - Access admin panel (restricted to admin users)
 
 ## Database Structure
 

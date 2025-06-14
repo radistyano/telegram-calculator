@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, scoped_session
+from sqlalchemy.pool import QueuePool
 import datetime
 
 Base = declarative_base()
@@ -70,9 +71,17 @@ class CustomFormula(Base):
 # Database initialization
 def init_db(db_path="sqlite:///usdt_calculator.db"):
     """Initialize the database and create tables if they don't exist"""
-    engine = create_engine(db_path)
+    engine = create_engine(
+        db_path,
+        poolclass=QueuePool,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_recycle=1800
+    )
     Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine)()
+    session_factory = sessionmaker(bind=engine)
+    return scoped_session(session_factory)
 
 
 # Default data initialization

@@ -42,9 +42,8 @@ init_default_data(db_session)
 (
     MAIN_MENU, BUY_USDT, SELL_USDT, ADMIN_MENU, SET_BUY_RATE, SET_SELL_RATE,
     MANAGE_FEES, ADD_FEE_MIN, ADD_FEE_MAX, ADD_FEE_AMOUNT, EDIT_FEE, DELETE_FEE,
-    SET_CUSTOM_FORMULA, BUY_CURRENCY_SELECT, SELL_CURRENCY_SELECT, BUY_IDR, SELL_IDR,
-    CALCULATOR
-) = range(18)
+    SET_CUSTOM_FORMULA, BUY_CURRENCY_SELECT, SELL_CURRENCY_SELECT, BUY_IDR, SELL_IDR
+) = range(17)
 
 # Callback data prefixes
 CALLBACK_PREFIX = {
@@ -140,7 +139,6 @@ def get_main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     """Get main menu keyboard"""
     keyboard = [
         [KeyboardButton("💰 Beli USDT"), KeyboardButton("💵 Jual USDT")],
-        [KeyboardButton("🧮 Kalkulator")],
     ]
     
     # Add admin button if user is admin
@@ -782,7 +780,19 @@ async def handle_buy_currency_select(update: Update, context: ContextTypes.DEFAU
     
     # Check if user wants to go back
     if text == "🔙 Kembali":
-        await start(update, context)
+        welcome_text = (
+            "🌟 *Menu Utama* 🌟\n\n"
+            "🤖 Bot ini akan membantu Anda menghitung harga beli dan jual USDT\n"
+            "💱 Dapatkan perhitungan akurat dengan rate terbaik\n"
+            "💎 Transaksi aman dan terpercaya\n\n"
+            "Silakan pilih menu di bawah ini:"
+        )
+        msg = await update.message.reply_text(
+            welcome_text,
+            reply_markup=get_main_menu_keyboard(user_id),
+            parse_mode='Markdown'
+        )
+        context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
 
     if text == "💵 USDT":
@@ -832,7 +842,19 @@ async def handle_sell_currency_select(update: Update, context: ContextTypes.DEFA
     
     # Check if user wants to go back
     if text == "🔙 Kembali":
-        await start(update, context)
+        welcome_text = (
+            "🌟 *Menu Utama* 🌟\n\n"
+            "🤖 Bot ini akan membantu Anda menghitung harga beli dan jual USDT\n"
+            "💱 Dapatkan perhitungan akurat dengan rate terbaik\n"
+            "💎 Transaksi aman dan terpercaya\n\n"
+            "Silakan pilih menu di bawah ini:"
+        )
+        msg = await update.message.reply_text(
+            welcome_text,
+            reply_markup=get_main_menu_keyboard(user_id),
+            parse_mode='Markdown'
+        )
+        context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
 
     if text == "💵 USDT":
@@ -1002,7 +1024,7 @@ async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"│  *DETAIL PERHITUNGAN USDT*\n"
             f"╰────────────────────╯\n"
             f"╭────〔 *USER INFO* 〕─────╮\n"
-            f"┊└ ID : {user_id}\n"
+            f"┊└ ID : `{user_id}`\n"
             f"┊└ Username : {username}\n"
             f"┊└ Created at : *{created_at}*\n"
             f"┊\n"
@@ -1378,17 +1400,17 @@ async def handle_buy_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"╭────────────────────╮\n"
             f"│  *DETAIL PERHITUNGAN USDT*\n"
             f"╰────────────────────╯\n"
-            f"╭────〔 *USER INFO* 〕───────╮\n"
+            f"╭────〔 *USER INFO* 〕─────╮\n"
             f"┊└ ID : `{user_id}`\n"
             f"┊└ Username : {username}\n"
             f"┊└ Created at : *{created_at}*\n"
             f"┊\n"
-            f"╭────〔 *BELI USDT* 〕───────╮\n"
+            f"╭────〔 *BELI USDT* 〕─────╮\n"
             f"┊ • Jumlah IDR : {format_currency(idr_amount)}\n"
             f"┊ • Jumlah USDT : {usdt_amount:.2f} USDT\n"
             f"┊ • Rate : {format_currency(buy_rate['value'])}\n"
             f"┊ • Fee : {format_currency(fee)}\n"
-            f"╰──────────────────────╯\n"
+            f"╰──────────────────╯\n"
             f"╰➤ Total Bayar : `{format_currency(total_amount)}`",
             reply_markup=get_result_keyboard(),
             parse_mode='Markdown'
@@ -1487,61 +1509,6 @@ async def handle_sell_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['last_message_id'] = msg.message_id
         return SELL_IDR
 
-async def handle_calculator_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if text == "🔙 Kembali":
-        await start(update, context)
-        return MAIN_MENU
-    try:
-        # Ganti simbol × dan x dengan * untuk perkalian, dan ^ dengan ** untuk pangkat
-        safe_expr = text.replace('×', '*').replace('x', '*').replace('^', '**')
-        
-        # Hanya izinkan karakter yang aman
-        allowed = set('0123456789+-*/().% ')
-        if not all(c in allowed or safe_expr[i:i+2] in ['//', '**'] for i, c in enumerate(safe_expr)):
-            raise ValueError
-            
-        # Jalankan evaluasi dalam thread pool untuk operasi CPU-bound
-        result = await run_in_threadpool(eval, safe_expr, {"__builtins__": None}, {})
-        
-        msg = await update.message.reply_text(
-            f"*{text} = {result}*",
-            reply_markup=get_back_keyboard(),
-            parse_mode='Markdown'
-        )
-        context.user_data['last_message_id'] = msg.message_id
-    except Exception:
-        msg = await update.message.reply_text(
-            "*❌ Ekspresi tidak valid. Silakan masukkan ekspresi matematika yang benar.*",
-            reply_markup=get_back_keyboard(),
-            parse_mode='Markdown'
-        )
-        context.user_data['last_message_id'] = msg.message_id
-    return CALCULATOR
-
-async def handle_calculator_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tampilkan template kalkulator dan minta input ekspresi"""
-    template = (
-        "*⌊ KALKULATOR ⌉*\n"
-        "╭────────────────────╮\n"
-        "┊ *+* : Penjumlahan \n"
-        "┊ *-* : Pengurangan \n"
-        "┊ *×* : Perkalian \n"
-        "┊ */* : Pembagian \n"
-        "┊ *//* : Pembagian bulat \n"
-        "┊ *%* : Modulus/sisa \n"
-        "┊ *^* : Pangkat \n"
-        "╰────────────────────╯\n\n"
-        "*Masukkan angka dan operator yang ingin dihitung*"
-    )
-    msg = await update.message.reply_text(
-        template,
-        reply_markup=get_back_keyboard(),
-        parse_mode='Markdown'
-    )
-    context.user_data['last_message_id'] = msg.message_id
-    return CALCULATOR
-
 def main():
     """Start the bot"""
     # Create the Application
@@ -1555,10 +1522,9 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             MAIN_MENU: [
-                MessageHandler(filters.Regex('^💰 Beli USDT$'), handle_buy_currency_select),
-                MessageHandler(filters.Regex('^💵 Jual USDT$'), handle_sell_currency_select),
-                MessageHandler(filters.Regex('^👑 Admin Panel$'), handle_admin_menu),
-                MessageHandler(filters.Regex('^🧮 Kalkulator$'), handle_calculator_menu),
+                MessageHandler(filters.Regex('^💰 Beli USDT$'), handle_main_menu),
+                MessageHandler(filters.Regex('^💵 Jual USDT$'), handle_main_menu),
+                MessageHandler(filters.Regex('^👑 Admin Panel$'), handle_main_menu),
             ],
             BUY_CURRENCY_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buy_currency_select)],
             SELL_CURRENCY_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_sell_currency_select)],
@@ -1576,7 +1542,6 @@ def main():
             EDIT_FEE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_edit_fee)],
             DELETE_FEE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_delete_fee)],
             SET_CUSTOM_FORMULA: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_set_custom_formula)],
-            CALCULATOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_calculator_input)],
         },
         fallbacks=[CommandHandler('start', start)],
         name="conversation",
