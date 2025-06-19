@@ -42,8 +42,9 @@ init_default_data(db_session)
 (
     MAIN_MENU, BUY_USDT, SELL_USDT, ADMIN_MENU, SET_BUY_RATE, SET_SELL_RATE,
     MANAGE_FEES, ADD_FEE_MIN, ADD_FEE_MAX, ADD_FEE_AMOUNT, EDIT_FEE, DELETE_FEE,
-    SET_CUSTOM_FORMULA, BUY_CURRENCY_SELECT, SELL_CURRENCY_SELECT, BUY_IDR, SELL_IDR
-) = range(17)
+    SET_CUSTOM_FORMULA, BUY_CURRENCY_SELECT, SELL_CURRENCY_SELECT, BUY_IDR, SELL_IDR,
+    CALCULATOR
+) = range(18)
 
 # Callback data prefixes
 CALLBACK_PREFIX = {
@@ -139,6 +140,7 @@ def get_main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     """Get main menu keyboard"""
     keyboard = [
         [KeyboardButton("💰 Beli USDT"), KeyboardButton("💵 Jual USDT")],
+        [KeyboardButton("🧮 Kalkulator")],
     ]
     
     # Add admin button if user is admin
@@ -504,14 +506,14 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     # Clear previous state and messages
-    if 'last_message_id' in context.user_data:
-        try:
-            await context.bot.delete_message(
-                chat_id=update.effective_chat.id,
-                message_id=context.user_data['last_message_id']
-            )
-        except Exception:
-            pass  # Ignore if message can't be deleted
+    # if 'last_message_id' in context.user_data:
+    #     try:
+    #         await context.bot.delete_message(
+    #             chat_id=update.effective_chat.id,
+    #             message_id=context.user_data['last_message_id']
+    #         )
+    #     except Exception:
+    #         pass  # Ignore if message can't be deleted
 
     if text == "💰 Beli USDT":
         msg = await update.message.reply_text(
@@ -520,7 +522,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_currency_selection_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return BUY_CURRENCY_SELECT
     elif text == "💵 Jual USDT":
         msg = await update.message.reply_text(
@@ -529,7 +531,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_currency_selection_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SELL_CURRENCY_SELECT
     elif text == "👑 Admin Panel" and is_admin(user_id):
         admin_text = (
@@ -544,14 +546,14 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_admin_menu_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADMIN_MENU
     else:
         msg = await update.message.reply_text(
             "❌ Pilihan tidak valid. Silakan pilih menu yang tersedia.",
             reply_markup=get_main_menu_keyboard(user_id)
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
 
 async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -559,15 +561,35 @@ async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
 
+    # DEBUG LOG
+    print(f"[DEBUG] handle_admin_menu: user_id={user_id}, text='{text}'")
+
+    # Jika user klik '👑 Admin Panel' di dalam admin panel, tampilkan ulang menu admin
+    if text == "👑 Admin Panel":
+        admin_text = (
+            "👑 *Admin Panel* 👑\n\n"
+            "🎛️ Kontrol penuh atas sistem kalkulator USDT\n"
+            "⚙️ Atur rate, fee, dan formula sesuai kebutuhan\n"
+            "📊 Pantau dan kelola transaksi dengan mudah\n\n"
+            "Silakan pilih menu:"
+        )
+        msg = await update.message.reply_text(
+            admin_text,
+            reply_markup=get_admin_menu_keyboard(),
+            parse_mode='Markdown'
+        )
+        # context.user_data['last_message_id'] = msg.message_id
+        return ADMIN_MENU
+
     # Clear previous state and messages
-    if 'last_message_id' in context.user_data:
-        try:
-            await context.bot.delete_message(
-                chat_id=update.effective_chat.id,
-                message_id=context.user_data['last_message_id']
-            )
-        except Exception:
-            pass  # Ignore if message can't be deleted
+    # if 'last_message_id' in context.user_data:
+    #     try:
+    #         await context.bot.delete_message(
+    #             chat_id=update.effective_chat.id,
+    #             message_id=context.user_data['last_message_id']
+    #         )
+    #     except Exception:
+    #         pass  # Ignore if message can't be deleted
 
     # Check if user is trying to switch to another action
     if text in ["💰 Beli USDT", "💵 Jual USDT"]:
@@ -578,7 +600,7 @@ async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛔ Anda tidak memiliki akses ke menu ini.",
             reply_markup=get_main_menu_keyboard(user_id)
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
     
     # Get current rates
@@ -598,7 +620,7 @@ async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_back_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SET_BUY_RATE
     elif text == "📊 Set Rate Jual":
         msg = await update.message.reply_text(
@@ -609,7 +631,7 @@ async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_back_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SET_SELL_RATE
     elif text == "💰 Kelola Fee":
         fee_text = (
@@ -624,7 +646,7 @@ async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_fee_menu_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MANAGE_FEES
     elif text == "📝 Set Formula":
         msg = await update.message.reply_text(
@@ -632,7 +654,7 @@ async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Masukkan formula kustom (gunakan x sebagai variabel):",
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SET_CUSTOM_FORMULA
     elif text == "🔙 Kembali ke Menu Utama":
         welcome_text = (
@@ -647,14 +669,14 @@ async def handle_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_menu_keyboard(user_id),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
     else:
         msg = await update.message.reply_text(
             "❌ Pilihan tidak valid. Silakan pilih menu yang tersedia.",
             reply_markup=get_admin_menu_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADMIN_MENU
 
 async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -663,14 +685,14 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     # Clear previous state and messages
-    if 'last_message_id' in context.user_data:
-        try:
-            await context.bot.delete_message(
-                chat_id=update.effective_chat.id,
-                message_id=context.user_data['last_message_id']
-            )
-        except Exception:
-            pass  # Ignore if message can't be deleted
+    # if 'last_message_id' in context.user_data:
+    #     try:
+    #         await context.bot.delete_message(
+    #             chat_id=update.effective_chat.id,
+    #             message_id=context.user_data['last_message_id']
+    #         )
+    #     except Exception:
+    #         pass  # Ignore if message can't be deleted
 
     # Check if user is trying to switch to another action
     if text in ["💰 Beli USDT", "💵 Jual USDT", "👑 Admin Panel"]:
@@ -681,7 +703,7 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛔ Anda tidak memiliki akses ke menu ini.",
             reply_markup=get_main_menu_keyboard(user_id)
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
 
     if text == "➕ Tambah Fee":
@@ -690,7 +712,7 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Masukkan nilai minimum untuk range fee:",
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADD_FEE_MIN
     elif text == "✏️ Edit Fee":
         fees = get_all_fee_ranges(db_session)
@@ -699,7 +721,7 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "ℹ️ Belum ada fee yang tersedia.",
                 reply_markup=get_admin_menu_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return ADMIN_MENU
         
         fee_list = "\n".join([
@@ -712,7 +734,7 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{fee_list}",
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return EDIT_FEE
     elif text == "❌ Hapus Fee":
         fees = get_all_fee_ranges(db_session)
@@ -721,7 +743,7 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "ℹ️ Belum ada fee yang tersedia.",
                 reply_markup=get_admin_menu_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return ADMIN_MENU
         
         fee_list = "\n".join([
@@ -734,7 +756,7 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{fee_list}",
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return DELETE_FEE
     elif text == "🔙 Kembali":
         admin_text = (
@@ -749,14 +771,14 @@ async def handle_fee_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_admin_menu_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADMIN_MENU
     else:
         msg = await update.message.reply_text(
             "❌ Pilihan tidak valid. Silakan pilih menu yang tersedia.",
             reply_markup=get_fee_menu_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MANAGE_FEES
 
 async def handle_buy_currency_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -765,14 +787,14 @@ async def handle_buy_currency_select(update: Update, context: ContextTypes.DEFAU
     user_id = update.effective_user.id
 
     # Clear previous state and messages
-    if 'last_message_id' in context.user_data:
-        try:
-            await context.bot.delete_message(
-                chat_id=update.effective_chat.id,
-                message_id=context.user_data['last_message_id']
-            )
-        except Exception:
-            pass  # Ignore if message can't be deleted
+    # if 'last_message_id' in context.user_data:
+    #     try:
+    #         await context.bot.delete_message(
+    #             chat_id=update.effective_chat.id,
+    #             message_id=context.user_data['last_message_id']
+    #         )
+    #     except Exception:
+    #         pass  # Ignore if message can't be deleted
 
     # Check if user is trying to switch to another action
     if text in ["💰 Beli USDT", "💵 Jual USDT", "👑 Admin Panel"]:
@@ -780,29 +802,17 @@ async def handle_buy_currency_select(update: Update, context: ContextTypes.DEFAU
     
     # Check if user wants to go back
     if text == "🔙 Kembali":
-        welcome_text = (
-            "🌟 *Menu Utama* 🌟\n\n"
-            "🤖 Bot ini akan membantu Anda menghitung harga beli dan jual USDT\n"
-            "💱 Dapatkan perhitungan akurat dengan rate terbaik\n"
-            "💎 Transaksi aman dan terpercaya\n\n"
-            "Silakan pilih menu di bawah ini:"
-        )
-        msg = await update.message.reply_text(
-            welcome_text,
-            reply_markup=get_main_menu_keyboard(user_id),
-            parse_mode='Markdown'
-        )
-        context.user_data['last_message_id'] = msg.message_id
+        await start(update, context)
         return MAIN_MENU
 
     if text == "💵 USDT":
         msg = await update.message.reply_text(
-            "🛍️ *Beli USDT*\n\n"
+            "��️ *Beli USDT*\n\n"
             "Masukkan jumlah USDT yang ingin dibeli:",
             reply_markup=get_back_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return BUY_USDT
     elif text == "💰 IDR":
         msg = await update.message.reply_text(
@@ -811,14 +821,14 @@ async def handle_buy_currency_select(update: Update, context: ContextTypes.DEFAU
             reply_markup=get_back_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return BUY_IDR
     else:
         msg = await update.message.reply_text(
             "❌ Pilihan tidak valid. Silakan pilih mata uang yang tersedia:",
             reply_markup=get_currency_selection_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return BUY_CURRENCY_SELECT
 
 async def handle_sell_currency_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -827,14 +837,14 @@ async def handle_sell_currency_select(update: Update, context: ContextTypes.DEFA
     user_id = update.effective_user.id
 
     # Clear previous state and messages
-    if 'last_message_id' in context.user_data:
-        try:
-            await context.bot.delete_message(
-                chat_id=update.effective_chat.id,
-                message_id=context.user_data['last_message_id']
-            )
-        except Exception:
-            pass  # Ignore if message can't be deleted
+    # if 'last_message_id' in context.user_data:
+    #     try:
+    #         await context.bot.delete_message(
+    #             chat_id=update.effective_chat.id,
+    #             message_id=context.user_data['last_message_id']
+    #         )
+    #     except Exception:
+    #         pass  # Ignore if message can't be deleted
 
     # Check if user is trying to switch to another action
     if text in ["💰 Beli USDT", "💵 Jual USDT", "👑 Admin Panel"]:
@@ -842,19 +852,7 @@ async def handle_sell_currency_select(update: Update, context: ContextTypes.DEFA
     
     # Check if user wants to go back
     if text == "🔙 Kembali":
-        welcome_text = (
-            "🌟 *Menu Utama* 🌟\n\n"
-            "🤖 Bot ini akan membantu Anda menghitung harga beli dan jual USDT\n"
-            "💱 Dapatkan perhitungan akurat dengan rate terbaik\n"
-            "💎 Transaksi aman dan terpercaya\n\n"
-            "Silakan pilih menu di bawah ini:"
-        )
-        msg = await update.message.reply_text(
-            welcome_text,
-            reply_markup=get_main_menu_keyboard(user_id),
-            parse_mode='Markdown'
-        )
-        context.user_data['last_message_id'] = msg.message_id
+        await start(update, context)
         return MAIN_MENU
 
     if text == "💵 USDT":
@@ -864,7 +862,7 @@ async def handle_sell_currency_select(update: Update, context: ContextTypes.DEFA
             reply_markup=get_back_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SELL_USDT
     elif text == "💰 IDR":
         msg = await update.message.reply_text(
@@ -873,14 +871,14 @@ async def handle_sell_currency_select(update: Update, context: ContextTypes.DEFA
             reply_markup=get_back_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SELL_IDR
     else:
         msg = await update.message.reply_text(
             "❌ Pilihan tidak valid. Silakan pilih mata uang yang tersedia:",
             reply_markup=get_currency_selection_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SELL_CURRENCY_SELECT
 
 async def handle_buy_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -898,7 +896,7 @@ async def handle_buy_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_currency_selection_keyboard(),
                 parse_mode='Markdown'
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return BUY_CURRENCY_SELECT
 
         usdt_amount = float(update.message.text)
@@ -907,7 +905,7 @@ async def handle_buy_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Jumlah USDT harus lebih besar dari 0. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return BUY_USDT
         
         # Get the buy rate
@@ -917,7 +915,7 @@ async def handle_buy_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Gagal mendapatkan rate beli. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return BUY_USDT
         
         # Calculate IDR amount
@@ -955,7 +953,7 @@ async def handle_buy_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_result_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         
         return MAIN_MENU
     except ValueError:
@@ -963,7 +961,7 @@ async def handle_buy_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Input tidak valid. Silakan masukkan angka:",
             reply_markup=get_back_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return BUY_USDT
 
 async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -981,7 +979,7 @@ async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_currency_selection_keyboard(),
                 parse_mode='Markdown'
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SELL_CURRENCY_SELECT
 
         usdt_amount = float(update.message.text)
@@ -990,7 +988,7 @@ async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Jumlah USDT harus lebih besar dari 0. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SELL_USDT
         
         # Get the sell rate
@@ -1000,7 +998,7 @@ async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Gagal mendapatkan rate jual. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SELL_USDT
         
         # Calculate IDR amount
@@ -1024,7 +1022,7 @@ async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"│  *DETAIL PERHITUNGAN USDT*\n"
             f"╰────────────────────╯\n"
             f"╭────〔 *USER INFO* 〕─────╮\n"
-            f"┊└ ID : `{user_id}`\n"
+            f"┊└ ID : {user_id}\n"
             f"┊└ Username : {username}\n"
             f"┊└ Created at : *{created_at}*\n"
             f"┊\n"
@@ -1038,7 +1036,7 @@ async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_result_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
 
         return MAIN_MENU
     except ValueError:
@@ -1046,7 +1044,7 @@ async def handle_sell_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Input tidak valid. Silakan masukkan angka:",
             reply_markup=get_back_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SELL_USDT
 
 async def handle_set_buy_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1056,7 +1054,7 @@ async def handle_set_buy_rate(update: Update, context: ContextTypes.DEFAULT_TYPE
             "⛔ Anda tidak memiliki akses ke menu ini.",
             reply_markup=get_main_menu_keyboard(update.effective_user.id)
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
     
     # Check if user wants to go back
@@ -1067,7 +1065,7 @@ async def handle_set_buy_rate(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_admin_menu_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADMIN_MENU
     
     try:
@@ -1077,17 +1075,19 @@ async def handle_set_buy_rate(update: Update, context: ContextTypes.DEFAULT_TYPE
                 "❌ Rate harus lebih besar dari 0. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SET_BUY_RATE
         
         # Update the rate
         success = update_rate(db_session, 'buy', new_rate)
+        if success:
+            clear_rate_cache()
         if not success:
             msg = await update.message.reply_text(
                 "❌ Gagal mengupdate rate beli. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SET_BUY_RATE
         
         # Get the updated rate to show the timestamp
@@ -1101,14 +1101,14 @@ async def handle_set_buy_rate(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_admin_menu_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADMIN_MENU
     except ValueError:
         msg = await update.message.reply_text(
             "❌ Input tidak valid. Silakan masukkan angka:",
             reply_markup=get_back_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SET_BUY_RATE
 
 async def handle_set_sell_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1118,7 +1118,7 @@ async def handle_set_sell_rate(update: Update, context: ContextTypes.DEFAULT_TYP
             "⛔ Anda tidak memiliki akses ke menu ini.",
             reply_markup=get_main_menu_keyboard(update.effective_user.id)
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return MAIN_MENU
     
     # Check if user wants to go back
@@ -1129,7 +1129,7 @@ async def handle_set_sell_rate(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=get_admin_menu_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADMIN_MENU
     
     try:
@@ -1139,17 +1139,19 @@ async def handle_set_sell_rate(update: Update, context: ContextTypes.DEFAULT_TYP
                 "❌ Rate harus lebih besar dari 0. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SET_SELL_RATE
         
         # Update the rate
         success = update_rate(db_session, 'sell', new_rate)
+        if success:
+            clear_rate_cache()
         if not success:
             msg = await update.message.reply_text(
                 "❌ Gagal mengupdate rate jual. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SET_SELL_RATE
         
         # Get the updated rate to show the timestamp
@@ -1163,14 +1165,14 @@ async def handle_set_sell_rate(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=get_admin_menu_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return ADMIN_MENU
     except ValueError:
         msg = await update.message.reply_text(
             "❌ Input tidak valid. Silakan masukkan angka:",
             reply_markup=get_back_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SET_SELL_RATE
 
 async def handle_add_fee_min(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1358,7 +1360,7 @@ async def handle_buy_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_currency_selection_keyboard(),
                 parse_mode='Markdown'
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return BUY_CURRENCY_SELECT
 
         idr_amount = float(update.message.text)
@@ -1367,7 +1369,7 @@ async def handle_buy_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Jumlah IDR harus lebih besar dari 0. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return BUY_IDR
         
         # Get the buy rate
@@ -1377,7 +1379,7 @@ async def handle_buy_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Gagal mendapatkan rate beli. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return BUY_IDR
         
         # Calculate USDT amount from IDR
@@ -1400,22 +1402,22 @@ async def handle_buy_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"╭────────────────────╮\n"
             f"│  *DETAIL PERHITUNGAN USDT*\n"
             f"╰────────────────────╯\n"
-            f"╭────〔 *USER INFO* 〕─────╮\n"
+            f"╭────〔 *USER INFO* 〕───────╮\n"
             f"┊└ ID : `{user_id}`\n"
             f"┊└ Username : {username}\n"
             f"┊└ Created at : *{created_at}*\n"
             f"┊\n"
-            f"╭────〔 *BELI USDT* 〕─────╮\n"
+            f"╭────〔 *BELI USDT* 〕───────╮\n"
             f"┊ • Jumlah IDR : {format_currency(idr_amount)}\n"
             f"┊ • Jumlah USDT : {usdt_amount:.2f} USDT\n"
             f"┊ • Rate : {format_currency(buy_rate['value'])}\n"
             f"┊ • Fee : {format_currency(fee)}\n"
-            f"╰──────────────────╯\n"
+            f"╰──────────────────────╯\n"
             f"╰➤ Total Bayar : `{format_currency(total_amount)}`",
             reply_markup=get_result_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         
         return MAIN_MENU
     except ValueError:
@@ -1423,7 +1425,7 @@ async def handle_buy_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Input tidak valid. Silakan masukkan angka:",
             reply_markup=get_back_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return BUY_IDR
 
 async def handle_sell_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1441,7 +1443,7 @@ async def handle_sell_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_currency_selection_keyboard(),
                 parse_mode='Markdown'
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SELL_CURRENCY_SELECT
 
         idr_amount = float(update.message.text)
@@ -1450,7 +1452,7 @@ async def handle_sell_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Jumlah IDR harus lebih besar dari 0. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SELL_IDR
         
         # Get the sell rate
@@ -1460,7 +1462,7 @@ async def handle_sell_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Gagal mendapatkan rate jual. Silakan coba lagi:",
                 reply_markup=get_back_keyboard()
             )
-            context.user_data['last_message_id'] = msg.message_id
+            # context.user_data['last_message_id'] = msg.message_id
             return SELL_IDR
         
         # Calculate USDT amount from IDR
@@ -1498,7 +1500,7 @@ async def handle_sell_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_result_keyboard(),
             parse_mode='Markdown'
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
 
         return MAIN_MENU
     except ValueError:
@@ -1506,8 +1508,63 @@ async def handle_sell_idr(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Input tidak valid. Silakan masukkan angka:",
             reply_markup=get_back_keyboard()
         )
-        context.user_data['last_message_id'] = msg.message_id
+        # context.user_data['last_message_id'] = msg.message_id
         return SELL_IDR
+
+async def handle_calculator_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    if text == "🔙 Kembali":
+        await start(update, context)
+        return MAIN_MENU
+    try:
+        # Ganti simbol × dan x dengan * untuk perkalian, dan ^ dengan ** untuk pangkat
+        safe_expr = text.replace('×', '*').replace('x', '*').replace('^', '**')
+        
+        # Hanya izinkan karakter yang aman
+        allowed = set('0123456789+-*/().% ')
+        if not all(c in allowed or safe_expr[i:i+2] in ['//', '**'] for i, c in enumerate(safe_expr)):
+            raise ValueError
+            
+        # Jalankan evaluasi dalam thread pool untuk operasi CPU-bound
+        result = await run_in_threadpool(eval, safe_expr, {"__builtins__": None}, {})
+        
+        msg = await update.message.reply_text(
+            f"*{text} = {result}*",
+            reply_markup=get_back_keyboard(),
+            parse_mode='Markdown'
+        )
+        # context.user_data['last_message_id'] = msg.message_id
+    except Exception:
+        msg = await update.message.reply_text(
+            "*❌ Ekspresi tidak valid. Silakan masukkan ekspresi matematika yang benar.*",
+            reply_markup=get_back_keyboard(),
+            parse_mode='Markdown'
+        )
+        # context.user_data['last_message_id'] = msg.message_id
+    return CALCULATOR
+
+async def handle_calculator_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tampilkan template kalkulator dan minta input ekspresi"""
+    template = (
+        "*⌊ KALKULATOR ⌉*\n"
+        "╭────────────────────╮\n"
+        "┊ *+* : Penjumlahan \n"
+        "┊ *-* : Pengurangan \n"
+        "┊ *×* : Perkalian \n"
+        "┊ */* : Pembagian \n"
+        "┊ *//* : Pembagian bulat \n"
+        "┊ *%* : Modulus/sisa \n"
+        "┊ *^* : Pangkat \n"
+        "╰────────────────────╯\n\n"
+        "*Masukkan angka dan operator yang ingin dihitung*"
+    )
+    msg = await update.message.reply_text(
+        template,
+        reply_markup=get_back_keyboard(),
+        parse_mode='Markdown'
+    )
+    # context.user_data['last_message_id'] = msg.message_id
+    return CALCULATOR
 
 def main():
     """Start the bot"""
@@ -1522,9 +1579,10 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             MAIN_MENU: [
-                MessageHandler(filters.Regex('^💰 Beli USDT$'), handle_main_menu),
-                MessageHandler(filters.Regex('^💵 Jual USDT$'), handle_main_menu),
-                MessageHandler(filters.Regex('^👑 Admin Panel$'), handle_main_menu),
+                MessageHandler(filters.Regex('^💰 Beli USDT$'), handle_buy_currency_select),
+                MessageHandler(filters.Regex('^💵 Jual USDT$'), handle_sell_currency_select),
+                MessageHandler(filters.Regex('^👑 Admin Panel$'), handle_admin_menu),
+                MessageHandler(filters.Regex('^🧮 Kalkulator$'), handle_calculator_menu),
             ],
             BUY_CURRENCY_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buy_currency_select)],
             SELL_CURRENCY_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_sell_currency_select)],
@@ -1542,6 +1600,7 @@ def main():
             EDIT_FEE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_edit_fee)],
             DELETE_FEE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_delete_fee)],
             SET_CUSTOM_FORMULA: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_set_custom_formula)],
+            CALCULATOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_calculator_input)],
         },
         fallbacks=[CommandHandler('start', start)],
         name="conversation",
